@@ -412,6 +412,7 @@ EEToProfInterfaceImpl::EEToProfInterfaceImpl() :
     m_pCallback8(NULL),
     m_pCallback9(NULL),
     m_pCallback10(NULL),
+    m_pCallback11(NULL),
     m_hmodProfilerDLL(NULL),
     m_fLoadedViaAttach(FALSE),
     m_pProfToEE(NULL),
@@ -660,20 +661,41 @@ HRESULT EEToProfInterfaceImpl::CreateProfiler(
 
     // ATTENTION: Please update EEToProfInterfaceImpl::~EEToProfInterfaceImpl() after adding the next ICorProfilerCallback interface here !!!
 
-    // The profiler may optionally support ICorProfilerCallback3,4,5,6,7,8,9,10.  Let's check.
-    ReleaseHolder<ICorProfilerCallback10> pCallback10;
+    // The profiler may optionally support ICorProfilerCallback3,4,5,6,7,8,9,10,11.  Let's check.
+
+    ReleaseHolder<ICorProfilerCallback11> pCallback11;
     hr = m_pCallback2->QueryInterface(
-        IID_ICorProfilerCallback10,
-        (LPVOID *)&pCallback10);
-    if (SUCCEEDED(hr) && (pCallback10 != NULL))
+        IID_ICorProfilerCallback11,
+        (LPVOID*)&pCallback11);
+    if (SUCCEEDED(hr) && (pCallback11 != NULL))
     {
-        _ASSERTE(m_pCallback10 == NULL);
-        m_pCallback10 = pCallback10.Extract();
-        pCallback10 = NULL;
+        _ASSERTE(m_pCallback11 == NULL);
+        m_pCallback11 = pCallback11.Extract();
+        pCallback11 = NULL;
     }
 
     // Due to inheritance, if we have an interface we must also have
     // all the previous versions
+    if (m_pCallback11 == NULL)
+    {
+        ReleaseHolder<ICorProfilerCallback10> pCallback10;
+        hr = m_pCallback2->QueryInterface(
+            IID_ICorProfilerCallback10,
+            (LPVOID*)&pCallback10);
+        if (SUCCEEDED(hr) && (pCallback10 != NULL))
+        {
+            _ASSERTE(m_pCallback10 == NULL);
+            m_pCallback10 = pCallback10.Extract();
+            pCallback10 = NULL;
+        }
+    }
+    else
+    {
+        _ASSERTE(m_pCallback10 == NULL);
+        m_pCallback10 = static_cast<ICorProfilerCallback10*>(m_pCallback11);
+        m_pCallback10->AddRef();
+    }
+
     if (m_pCallback10 == NULL)
     {
         ReleaseHolder<ICorProfilerCallback9> pCallback9;
@@ -910,6 +932,12 @@ EEToProfInterfaceImpl::~EEToProfInterfaceImpl()
         {
             m_pCallback10->Release();
             m_pCallback10 = NULL;
+        }
+
+        if (m_pCallback11 != NULL)
+        {
+            m_pCallback11->Release();
+            m_pCallback11 = NULL;
         }
 
         // Only unload the V4 profiler if this is not part of shutdown.  This protects
@@ -6351,6 +6379,49 @@ HRESULT EEToProfInterfaceImpl::EventPipeProviderCreated(EventPipeProvider *provi
 #else // FEATURE_PERFTRACING
     return E_NOTIMPL;
 #endif // FEATURE_PERFTRACING
+}
+
+
+HRESULT EEToProfInterfaceImpl::ContentionStart(ThreadID managedThread)
+{
+    CONTRACTL
+    {
+        NOTHROW;
+        GC_NOTRIGGER;
+        MODE_ANY;
+    }
+    CONTRACTL_END;
+
+    CLR_TO_PROFILER_ENTRYPOINT_FOR_THREAD_EX(kEE2PNoTrigger, managedThread, (LF_CORPROF,
+        LL_INFO10000,
+        "**PROF: Contention started.\n"));
+ 
+    if (m_pCallback11 == NULL)
+    {
+        return S_OK;
+    }
+    return m_pCallback11->ContentionStart(managedThread);
+}
+
+HRESULT EEToProfInterfaceImpl::ContentionEnd(ThreadID managedThread, double durationInNs)
+{
+    CONTRACTL
+    {
+        NOTHROW;
+        GC_NOTRIGGER;
+        MODE_ANY;
+    }
+    CONTRACTL_END;
+
+    CLR_TO_PROFILER_ENTRYPOINT_FOR_THREAD_EX(kEE2PNoTrigger, managedThread, (LF_CORPROF,
+        LL_INFO10000,
+        "**PROF: Contention stopped.\n"));
+
+    if (m_pCallback11 == NULL)
+    {
+        return S_OK;
+    }
+    return m_pCallback11->ContentionEnd(managedThread, durationInNs);
 }
 
 #endif // PROFILING_SUPPORTED

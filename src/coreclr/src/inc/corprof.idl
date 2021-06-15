@@ -2555,6 +2555,23 @@ interface ICorProfilerCallback10 : ICorProfilerCallback9
     HRESULT EventPipeProviderCreated([in] EVENTPIPE_PROVIDER provider);
 }
 
+[
+    object,
+    uuid(7DF0198F-1A8A-4DDF-A7D5-D0A404FACFFA),
+    pointer_default(unique),
+    local
+]
+
+interface ICorProfilerCallback11 : ICorProfilerCallback10
+{
+    HRESULT ContentionStart(
+        [in] ThreadID managedThreadId);
+
+    HRESULT ContentionEnd(
+        [in] ThreadID managedThreadId,
+        [in] double durationInNs);
+}
+
 /*
  * COR_PRF_CODEGEN_FLAGS controls various flags and hooks for a specific
  * method.  A combination of COR_PRF_CODEGEN_FLAGS is provided by the

@@ -505,6 +505,12 @@ public:
 
     HRESULT EventPipeProviderCreated(EventPipeProvider *provider);
 
+    //
+    // Contention
+    //
+    HRESULT ContentionStart(ThreadID managedThread);
+    HRESULT ContentionEnd(ThreadID managedThread, double durationInNs);
+
 private:
 
     //
@@ -576,6 +582,7 @@ private:
     ICorProfilerCallback8  * m_pCallback8;
     ICorProfilerCallback9  * m_pCallback9;
     ICorProfilerCallback10 * m_pCallback10;
+    ICorProfilerCallback11 * m_pCallback11;
 
     HMODULE                 m_hmodProfilerDLL;
 

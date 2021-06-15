@@ -2553,10 +2553,13 @@ BOOL AwareLock::EnterEpilogHelper(Thread* pCurThread, INT32 timeOut)
 
     BOOLEAN IsContentionKeywordEnabled = ETW_TRACING_CATEGORY_ENABLED(MICROSOFT_WINDOWS_DOTNETRUNTIME_PROVIDER_DOTNET_Context, TRACE_LEVEL_INFORMATION, CLR_CONTENTION_KEYWORD);
     LARGE_INTEGER startTicks = { {0} };
+    QueryPerformanceCounter(&startTicks);
+    BEGIN_PIN_PROFILER(CORProfilerPresent());
+    g_profControlBlock.pProfInterface->ContentionStart((ThreadID)pCurThread);
+    END_PIN_PROFILER();
 
     if (IsContentionKeywordEnabled)
     {
-        QueryPerformanceCounter(&startTicks);
 
         // Fire a contention start event for a managed contention
         FireEtwContentionStart_V1(ETW::ContentionLog::ContentionStructs::ManagedContention, GetClrInstanceId());
@@ -2694,16 +2697,22 @@ BOOL AwareLock::EnterEpilogHelper(Thread* pCurThread, INT32 timeOut)
     GCPROTECT_END();
     DecrementTransientPrecious();
 
+    LARGE_INTEGER endTicks;
+    QueryPerformanceCounter(&endTicks);
+
+    double elapsedTimeInNanosecond = ComputeElapsedTimeInNanosecond(startTicks, endTicks);
+
+    BEGIN_PIN_PROFILER(CORProfilerPresent());
+    g_profControlBlock.pProfInterface->ContentionEnd((ThreadID)pCurThread, elapsedTimeInNanosecond);
+    END_PIN_PROFILER();
+
     if (IsContentionKeywordEnabled)
     {
-        LARGE_INTEGER endTicks;
-        QueryPerformanceCounter(&endTicks);
-
-        double elapsedTimeInNanosecond = ComputeElapsedTimeInNanosecond(startTicks, endTicks);
 
         // Fire a contention end event for a managed contention
         FireEtwContentionStop_V1(ETW::ContentionLog::ContentionStructs::ManagedContention, GetClrInstanceId(), elapsedTimeInNanosecond);
     }
+
 
 
     if (ret == WAIT_TIMEOUT)
@@ -2720,6 +2729,7 @@ BOOL AwareLock::EnterEpilogHelper(Thread* pCurThread, INT32 timeOut)
     int      caller = (pFrame && pFrame != FRAME_TOP ? (int)pFrame->GetReturnAddress() : -1);
     pCurThread->m_pTrackSync->EnterSync(caller, this);
 #endif
+
     return true;
 }
 
